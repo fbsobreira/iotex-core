@@ -75,7 +75,7 @@ type SubChain struct {
 var Gen = &Genesis{
 	TotalSupply:         ConvertIotxToRau(10000000000),
 	BlockReward:         ConvertIotxToRau(5),
-	Timestamp:           uint64(1524676419),
+	Timestamp:           uint64(1524678309),
 	ParentHash:          hash.Hash32B{},
 	GenesisCoinbaseData: "Connecting the physical world, block by block",
 }
