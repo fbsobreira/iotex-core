@@ -953,6 +953,7 @@ func (bc *blockchain) startExistingBlockchain(recoveryHeight uint64) error {
 		}
 		startHeight = factoryHeight + 1
 	}
+	log.L().Info("start height 1.", zap.Uint64("startHeight", startHeight))
 	ws, err := bc.sf.NewWorkingSet()
 	if err != nil {
 		return errors.Wrap(err, "failed to obtain working set from state factory")
@@ -999,6 +1000,7 @@ func (bc *blockchain) startExistingBlockchain(recoveryHeight uint64) error {
 			}
 		}
 	}
+	log.L().Info("start height 2.", zap.Uint64("startHeight", startHeight))
 	for i := startHeight; i <= bc.tipHeight; i++ {
 		blk, err := bc.getBlockByHeight(i)
 		if err != nil {
