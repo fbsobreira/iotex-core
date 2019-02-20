@@ -7,38 +7,43 @@
 // This is a testing tool to check health of servers
 // To use, run "make build" and " ./bin/servermonitor"
 
-package main
+package servermonitor
 
 import (
 	"fmt"
 
 	"github.com/iotexproject/iotex-core/protogen/iotexapi"
-
-	"github.com/iotexproject/iotex-core/api"
-
-	_ "go.uber.org/automaxprocs"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
-const (
-	adminNumber = 2
-)
-
-func servermonitor(svr *api.Server, height uint64) error {
-	dummyIn := new(iotexapi.GetBlockMetasRequest)
-	resp, err := svr.GetBlockMetas(nil, dummyIn)
-	if err != nil {
-		fmt.Println("error in server monitoring in GetBlockMetas")
-		return err
-	}
-	for _, blkmeta := range resp.BlkMetas {
-		if blkmeta.Height < height {
-			fmt.Printf("server %T health is down", svr)
-			return err
-		}
-	}
-	return nil
+// Client is the blockchain API client.
+type Client struct {
+	api iotexapi.APIServiceClient
 }
 
-func main() {
-	// TODO -
+// New creates a new Client.
+func New(serverAddr string) (*Client, error) {
+	conn, err := grpc.Dial(serverAddr, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
+	}
+	return &Client{
+		api: iotexapi.NewAPIServiceClient(conn),
+	}, nil
+}
+
+// ServerMonitor is to track server's health by checking it's current height
+func (c *Client) ServerMonitor(ctx context.Context, request *iotexapi.GetBlockMetasRequest, height uint64) (bool, error) {
+	resp, err := c.api.GetBlockMetas(ctx, request)
+	if err != nil {
+		return false, fmt.Errorf("\n error in GetBlockMetas: %v", err)
+	}
+	// blkPb := resp.BlkMetas[0]
+	for _, blkPb := range resp.BlkMetas {
+		if blkPb.Height < height {
+			return false, fmt.Errorf("server health status is negative")
+		}
+	}
+	return true, nil
 }
