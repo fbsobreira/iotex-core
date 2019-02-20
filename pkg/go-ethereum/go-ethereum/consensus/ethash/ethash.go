@@ -1,0 +1,46 @@
+//go:binary-only-package
+package ethash
+
+import (
+	_ "bytes"
+	_ "crypto/rand"
+	_ "encoding/binary"
+	_ "encoding/json"
+	_ "errors"
+	_ "fmt"
+	_ "hash"
+	_ "math"
+	_ "math/big"
+	_ "math/rand"
+	_ "net/http"
+	_ "os"
+	_ "path/filepath"
+	_ "reflect"
+	_ "runtime"
+	_ "strconv"
+	_ "sync"
+	_ "sync/atomic"
+	_ "time"
+	_ "unsafe"
+
+	_ "github.com/deckarep/golang-set"
+	_ "github.com/edsrzf/mmap-go"
+	_ "github.com/hashicorp/golang-lru/simplelru"
+
+	_ "github.com/ethereum/go-ethereum/common"
+	_ "github.com/ethereum/go-ethereum/common/bitutil"
+	_ "github.com/ethereum/go-ethereum/common/hexutil"
+	_ "github.com/ethereum/go-ethereum/common/math"
+	_ "github.com/ethereum/go-ethereum/consensus"
+	_ "github.com/ethereum/go-ethereum/consensus/misc"
+	_ "github.com/ethereum/go-ethereum/core/state"
+	_ "github.com/ethereum/go-ethereum/core/types"
+	_ "github.com/ethereum/go-ethereum/crypto"
+	_ "github.com/ethereum/go-ethereum/crypto/sha3"
+	_ "github.com/ethereum/go-ethereum/log"
+	_ "github.com/ethereum/go-ethereum/metrics"
+	_ "github.com/ethereum/go-ethereum/params"
+	_ "github.com/ethereum/go-ethereum/rlp"
+	_ "github.com/ethereum/go-ethereum/rpc"
+)
+

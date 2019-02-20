@@ -1,0 +1,42 @@
+//go:binary-only-package
+package p2p
+
+import (
+	_ "bytes"
+	_ "container/heap"
+	_ "crypto/aes"
+	_ "crypto/cipher"
+	_ "crypto/ecdsa"
+	_ "crypto/elliptic"
+	_ "crypto/hmac"
+	_ "crypto/rand"
+	_ "encoding/binary"
+	_ "errors"
+	_ "fmt"
+	_ "hash"
+	_ "io"
+	_ "io/ioutil"
+	_ "math/rand"
+	_ "net"
+	_ "sort"
+	_ "sync"
+	_ "sync/atomic"
+	_ "time"
+
+	_ "github.com/golang/snappy"
+
+	_ "github.com/ethereum/go-ethereum/common"
+	_ "github.com/ethereum/go-ethereum/common/mclock"
+	_ "github.com/ethereum/go-ethereum/crypto"
+	_ "github.com/ethereum/go-ethereum/crypto/ecies"
+	_ "github.com/ethereum/go-ethereum/crypto/secp256k1"
+	_ "github.com/ethereum/go-ethereum/crypto/sha3"
+	_ "github.com/ethereum/go-ethereum/event"
+	_ "github.com/ethereum/go-ethereum/log"
+	_ "github.com/ethereum/go-ethereum/metrics"
+	_ "github.com/ethereum/go-ethereum/p2p/discover"
+	_ "github.com/ethereum/go-ethereum/p2p/discv5"
+	_ "github.com/ethereum/go-ethereum/p2p/nat"
+	_ "github.com/ethereum/go-ethereum/p2p/netutil"
+	_ "github.com/ethereum/go-ethereum/rlp"
+)

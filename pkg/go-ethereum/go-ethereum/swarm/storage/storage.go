@@ -1,0 +1,41 @@
+//go:binary-only-package
+package storage
+
+import (
+	_ "archive/tar"
+	_ "bytes"
+	_ "context"
+	_ "crypto"
+	_ "crypto/rand"
+	_ "encoding/binary"
+	_ "encoding/hex"
+	_ "errors"
+	_ "fmt"
+	_ "hash"
+	_ "io"
+	_ "io/ioutil"
+	_ "path/filepath"
+	_ "sort"
+	_ "sync"
+	_ "sync/atomic"
+	_ "time"
+
+	_ "github.com/hashicorp/golang-lru"
+	_ "github.com/opentracing/opentracing-go"
+	_ "github.com/opentracing/opentracing-go/log"
+	_ "github.com/syndtr/goleveldb/leveldb"
+	_ "github.com/syndtr/goleveldb/leveldb/iterator"
+	_ "github.com/syndtr/goleveldb/leveldb/opt"
+
+	_ "github.com/ethereum/go-ethereum/common"
+	_ "github.com/ethereum/go-ethereum/crypto/sha3"
+	_ "github.com/ethereum/go-ethereum/metrics"
+	_ "github.com/ethereum/go-ethereum/p2p/discover"
+	_ "github.com/ethereum/go-ethereum/rlp"
+	_ "github.com/ethereum/go-ethereum/swarm/bmt"
+	_ "github.com/ethereum/go-ethereum/swarm/chunk"
+	_ "github.com/ethereum/go-ethereum/swarm/log"
+	_ "github.com/ethereum/go-ethereum/swarm/spancontext"
+	_ "github.com/ethereum/go-ethereum/swarm/storage/encryption"
+	_ "github.com/ethereum/go-ethereum/swarm/storage/mock"
+)

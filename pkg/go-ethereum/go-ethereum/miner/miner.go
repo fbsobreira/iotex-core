@@ -1,0 +1,40 @@
+//go:binary-only-package
+package miner
+
+import (
+	_ "bytes"
+	_ "container/ring"
+	_ "crypto/ecdsa"
+	_ "errors"
+	_ "fmt"
+	_ "io/ioutil"
+	_ "math/big"
+	_ "math/rand"
+	_ "os"
+	_ "path/filepath"
+	_ "sync"
+	_ "sync/atomic"
+	_ "time"
+
+	_ "github.com/deckarep/golang-set"
+
+	_ "github.com/ethereum/go-ethereum/accounts/keystore"
+	_ "github.com/ethereum/go-ethereum/common"
+	_ "github.com/ethereum/go-ethereum/common/fdlimit"
+	_ "github.com/ethereum/go-ethereum/consensus"
+	_ "github.com/ethereum/go-ethereum/consensus/ethash"
+	_ "github.com/ethereum/go-ethereum/consensus/misc"
+	_ "github.com/ethereum/go-ethereum/core"
+	_ "github.com/ethereum/go-ethereum/core/state"
+	_ "github.com/ethereum/go-ethereum/core/types"
+	_ "github.com/ethereum/go-ethereum/core/vm"
+	_ "github.com/ethereum/go-ethereum/crypto"
+	_ "github.com/ethereum/go-ethereum/eth"
+	_ "github.com/ethereum/go-ethereum/eth/downloader"
+	_ "github.com/ethereum/go-ethereum/event"
+	_ "github.com/ethereum/go-ethereum/log"
+	_ "github.com/ethereum/go-ethereum/node"
+	_ "github.com/ethereum/go-ethereum/p2p"
+	_ "github.com/ethereum/go-ethereum/p2p/discover"
+	_ "github.com/ethereum/go-ethereum/params"
+)
