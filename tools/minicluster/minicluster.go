@@ -21,13 +21,14 @@ import (
 	"github.com/iotexproject/iotex-core/action"
 	"github.com/iotexproject/iotex-core/blockchain"
 	"github.com/iotexproject/iotex-core/config"
-	"github.com/iotexproject/iotex-core/explorer"
 	"github.com/iotexproject/iotex-core/pkg/keypair"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/iotexproject/iotex-core/pkg/probe"
+	"github.com/iotexproject/iotex-core/protogen/iotexapi"
 	"github.com/iotexproject/iotex-core/server/itx"
 	"github.com/iotexproject/iotex-core/testutil"
 	"github.com/iotexproject/iotex-core/tools/util"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -72,9 +73,9 @@ func main() {
 		chainDBPath := fmt.Sprintf("./chain%d.db", i+1)
 		trieDBPath := fmt.Sprintf("./trie%d.db", i+1)
 		networkPort := 4689 + i
-		explorerPort := 14004 + i
+		apiPort := 14014 + i
 		config := newConfig(genesisConfigPath, chainDBPath, trieDBPath, chainAddrs[i].PriKey,
-			networkPort, explorerPort)
+			networkPort, apiPort)
 		if i == 0 {
 			config.Network.BootstrapNodes = []string{}
 			config.Network.MasterKey = "bootnode"
@@ -96,17 +97,15 @@ func main() {
 		go itx.StartServer(context.Background(), svrs[i], probe.New(7788), configs[i])
 	}
 
-	if err := testutil.WaitUntil(10*time.Millisecond, 2*time.Second, func() (bool, error) {
-		return svrs[0].ChainService(uint32(1)).Explorer().Port() == 14004, nil
-	}); err != nil {
-		log.L().Fatal("Failed to start explorer JSON-RPC server", zap.Error(err))
+	// target address for grpc connection. Default is "127.0.0.1:14014"
+	grpcAddr := "127.0.0.1:14014"
+	conn, err := grpc.Dial(grpcAddr, grpc.WithBlock(), grpc.WithTimeout(2*time.Second), grpc.WithInsecure())
+	if err != nil {
+		log.L().Fatal("Failed to connect to grpc server", zap.Error(err))
 	}
+	client := iotexapi.NewAPIServiceClient(conn)
 
-	// target address for jrpc connection. Default is "127.0.0.1:14004"
-	jrpcAddr := "127.0.0.1:14004"
-	client := explorer.NewExplorerProxy("http://" + jrpcAddr)
-
-	counter, err := util.InitCounter(client, chainAddrs)
+	counter, err := util.InitCounterAPI(client, chainAddrs)
 	if err != nil {
 		log.L().Fatal("Failed to initialize nonce counter", zap.Error(err))
 	}
@@ -138,7 +137,7 @@ func main() {
 		d := time.Duration(timeout) * time.Second
 
 		// First deploy a smart contract which can be interacted by injected executions
-		eHash, err := util.DeployContract(client, counter, delegates, executionGasLimit, executionGasPrice,
+		eHash, err := util.DeployContractAPI(client, counter, delegates, executionGasLimit, executionGasPrice,
 			deployExecData, retryNum, retryInterval)
 		if err != nil {
 			log.L().Fatal("Failed to deploy smart contract", zap.Error(err))
@@ -154,7 +153,7 @@ func main() {
 		contract := receipt.ContractAddress
 
 		wg := &sync.WaitGroup{}
-		util.InjectByAps(wg, aps, counter, transferGasLimit, transferGasPrice, transferPayload, voteGasLimit, voteGasPrice,
+		util.InjectByApsAPI(wg, aps, counter, transferGasLimit, transferGasPrice, transferPayload, voteGasLimit, voteGasPrice,
 			contract, executionAmount, executionGasLimit, executionGasPrice, interactExecData, client, admins, delegates, d,
 			retryNum, retryInterval, resetInterval)
 		wg.Wait()
@@ -214,7 +213,7 @@ func newConfig(
 	trieDBPath string,
 	producerPriKey keypair.PrivateKey,
 	networkPort,
-	explorerPort int,
+	apiPort int,
 ) config.Config {
 	cfg := config.Default
 
@@ -252,8 +251,7 @@ func newConfig(
 
 	cfg.System.HTTPMetricsPort = 0
 
-	cfg.Explorer.Enabled = true
-	cfg.Explorer.Port = explorerPort
-
+	cfg.API.Enabled = true
+	cfg.API.Port = apiPort
 	return cfg
 }

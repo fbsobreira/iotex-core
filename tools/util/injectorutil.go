@@ -7,6 +7,7 @@
 package util
 
 import (
+	"context"
 	"encoding/hex"
 	"io/ioutil"
 	"math/big"
@@ -26,6 +27,7 @@ import (
 	"github.com/iotexproject/iotex-core/pkg/keypair"
 	"github.com/iotexproject/iotex-core/pkg/log"
 	"github.com/iotexproject/iotex-core/pkg/unit"
+	"github.com/iotexproject/iotex-core/protogen/iotexapi"
 )
 
 // KeyPairs indicate the keypair of accounts getting transfers from Creator in genesis block
@@ -89,6 +91,27 @@ func InitCounter(client explorer.Explorer, addrKeys []*AddressKey) (map[string]u
 				return err
 			}
 			counter[addr] = uint64(addrDetails.PendingNonce)
+			return nil
+		}, backoff.NewExponentialBackOff())
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to get address details of %s", addrKey.EncodedAddr)
+		}
+	}
+	return counter, nil
+}
+
+// InitCounterAPI initializes the map of nonce counter of each address
+func InitCounterAPI(apiClient iotexapi.APIServiceClient, addrKeys []*AddressKey) (map[string]uint64, error) {
+	counter := make(map[string]uint64)
+	for _, addrKey := range addrKeys {
+		addr := addrKey.EncodedAddr
+		err := backoff.Retry(func() error {
+			acctDetails, err := apiClient.GetAccount(context.Background(), &iotexapi.GetAccountRequest{Address: addr})
+			if err != nil {
+				log.L().Error("grpc GetAccount fail")
+				return err
+			}
+			counter[addr] = uint64(acctDetails.GetAccountMeta().PendingNonce)
 			return nil
 		}, backoff.NewExponentialBackOff())
 		if err != nil {
@@ -177,6 +200,94 @@ loop:
 			case 2:
 				executor, nonce := createExecutionInjection(counter, delegates)
 				go injectExecInteraction(wg, client, executor, contract, nonce, big.NewInt(int64(executionAmount)),
+					uint64(executionGasLimit), big.NewInt(int64(executionGasPrice)),
+					executionData, retryNum, retryInterval)
+			}
+		}
+	}
+}
+
+// InjectByApsAPI injects Actions in APS Mode using gPRC
+func InjectByApsAPI(
+	wg *sync.WaitGroup,
+	aps float64,
+	counter map[string]uint64,
+	transferGasLimit int,
+	transferGasPrice int,
+	transferPayload string,
+	voteGasLimit int,
+	voteGasPrice int,
+	contract string,
+	executionAmount int,
+	executionGasLimit int,
+	executionGasPrice int,
+	executionData string,
+	c iotexapi.APIServiceClient,
+	admins []*AddressKey,
+	delegates []*AddressKey,
+	duration time.Duration,
+	retryNum int,
+	retryInterval int,
+	resetInterval int,
+) {
+	timeout := time.After(duration)
+	tick := time.Tick(time.Duration(1/float64(aps)*1000000) * time.Microsecond)
+	reset := time.Tick(time.Duration(resetInterval) * time.Second)
+	rand.Seed(time.Now().UnixNano())
+loop:
+	for {
+		select {
+		case <-timeout:
+			break loop
+		case <-reset:
+			for _, admin := range admins {
+				addr := admin.EncodedAddr
+				err := backoff.Retry(func() error {
+					acctDetails, err := c.GetAccount(context.Background(), &iotexapi.GetAccountRequest{Address: addr})
+					if err != nil {
+						log.L().Error("grpc GetAccount fail")
+						return err
+					}
+					counter[addr] = uint64(acctDetails.GetAccountMeta().PendingNonce)
+					return nil
+				}, backoff.NewExponentialBackOff())
+				if err != nil {
+					log.L().Fatal("Failed to inject actions by APS",
+						zap.Error(err),
+						zap.String("addr", admin.EncodedAddr))
+				}
+			}
+			for _, delegate := range delegates {
+				addr := delegate.EncodedAddr
+				err := backoff.Retry(func() error {
+					acctDetails, err := c.GetAccount(context.Background(), &iotexapi.GetAccountRequest{Address: addr})
+					if err != nil {
+						log.L().Error("grpc GetAccount fail")
+						return err
+					}
+					counter[addr] = uint64(acctDetails.GetAccountMeta().PendingNonce)
+					return nil
+				}, backoff.NewExponentialBackOff())
+				if err != nil {
+					log.L().Fatal("Failed to inject actions by APS",
+						zap.Error(err),
+						zap.String("addr", delegate.EncodedAddr))
+				}
+			}
+		case <-tick:
+			wg.Add(1)
+			switch rand := rand.Intn(3); rand {
+			case 0:
+				sender, recipient, nonce := createTransferInjection(counter, delegates)
+				go injectTransferAPI(wg, c, sender, recipient, nonce, uint64(transferGasLimit),
+					big.NewInt(int64(transferGasPrice)), transferPayload, retryNum, retryInterval)
+			case 1:
+				sender, recipient, nonce := createVoteInjection(counter, admins, delegates)
+				go injectVoteAPI(wg, c, sender, recipient, nonce, uint64(voteGasLimit),
+					big.NewInt(int64(voteGasPrice)), retryNum, retryInterval)
+			case 2:
+				executor, nonce := createExecutionInjection(counter, delegates)
+				go injectExecInteractionAPI(wg, c, executor, contract, nonce, big.NewInt(int64(executionAmount)),
 					uint64(executionGasLimit), big.NewInt(int64(executionGasPrice)),
 					executionData, retryNum, retryInterval)
 			}
@@ -326,6 +437,28 @@ func DeployContract(
 	return selp.Hash(), nil
 }
 
+// DeployContractAPI deploys a smart contract before starting action injections
+func DeployContractAPI(
+	client iotexapi.APIServiceClient,
+	counter map[string]uint64,
+	delegates []*AddressKey,
+	executionGasLimit int,
+	executionGasPrice int,
+	executionData string,
+	retryNum int,
+	retryInterval int,
+) (hash.Hash256, error) {
+	executor, nonce := createExecutionInjection(counter, delegates)
+	selp, execution, err := createSignedExecution(executor, action.EmptyAddress, nonce, big.NewInt(0),
+		uint64(executionGasLimit), big.NewInt(int64(executionGasPrice)), executionData)
+	if err != nil {
+		return hash.ZeroHash256, errors.Wrap(err, "failed to create signed execution")
+	}
+	log.L().Info("Created signed execution")
+
+	injectExecutionAPI(selp, execution, client, retryNum, retryInterval)
+	return selp.Hash(), nil
+}
 func injectTransfer(
 	wg *sync.WaitGroup,
 	c explorer.Explorer,
@@ -379,7 +512,43 @@ func injectTransfer(
 		wg.Done()
 	}
 }
+func injectTransferAPI(
+	wg *sync.WaitGroup,
+	c iotexapi.APIServiceClient,
+	sender *AddressKey,
+	recipient *AddressKey,
+	nonce uint64,
+	gasLimit uint64,
+	gasPrice *big.Int,
+	payload string,
+	retryNum int,
+	retryInterval int,
+) {
+	amount := int64(0)
+	for amount == int64(0) {
+		amount = int64(rand.Intn(5))
+	}
 
+	selp, _, err := createSignedTransfer(sender, recipient, unit.ConvertIotxToRau(amount), nonce, gasLimit,
+		gasPrice, payload)
+	if err != nil {
+		log.L().Fatal("Failed to inject transfer", zap.Error(err))
+	}
+
+	log.L().Info("Created signed transfer")
+
+	bo := backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Duration(retryInterval)*time.Second), uint64(retryNum))
+	if err := backoff.Retry(func() error {
+		_, err := c.SendAction(context.Background(), &iotexapi.SendActionRequest{Action: selp.Proto()})
+		return err
+	}, bo); err != nil {
+		log.L().Error("Failed to inject transfer", zap.Error(err))
+	}
+
+	if wg != nil {
+		wg.Done()
+	}
+}
 func injectVote(
 	wg *sync.WaitGroup,
 	c explorer.Explorer,
@@ -422,7 +591,36 @@ func injectVote(
 		wg.Done()
 	}
 }
+func injectVoteAPI(
+	wg *sync.WaitGroup,
+	c iotexapi.APIServiceClient,
+	sender *AddressKey,
+	recipient *AddressKey,
+	nonce uint64,
+	gasLimit uint64,
+	gasPrice *big.Int,
+	retryNum int,
+	retryInterval int,
+) {
+	selp, _, err := createSignedVote(sender, recipient, nonce, gasLimit, gasPrice)
+	if err != nil {
+		log.L().Fatal("Failed to inject vote", zap.Error(err))
+	}
 
+	log.L().Info("Created signed vote")
+
+	bo := backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Duration(retryInterval)*time.Second), uint64(retryNum))
+	if err := backoff.Retry(func() error {
+		_, err := c.SendAction(context.Background(), &iotexapi.SendActionRequest{Action: selp.Proto()})
+		return err
+	}, bo); err != nil {
+		log.L().Error("Failed to inject vote", zap.Error(err))
+	}
+
+	if wg != nil {
+		wg.Done()
+	}
+}
 func injectExecInteraction(
 	wg *sync.WaitGroup,
 	c explorer.Explorer,
@@ -444,6 +642,32 @@ func injectExecInteraction(
 	log.L().Info("Created signed execution")
 
 	injectExecution(selp, execution, c, retryNum, retryInterval)
+	if wg != nil {
+		wg.Done()
+	}
+}
+
+func injectExecInteractionAPI(
+	wg *sync.WaitGroup,
+	c iotexapi.APIServiceClient,
+	executor *AddressKey,
+	contract string,
+	nonce uint64,
+	amount *big.Int,
+	gasLimit uint64,
+	gasPrice *big.Int,
+	data string,
+	retryNum int,
+	retryInterval int,
+) {
+	selp, execution, err := createSignedExecution(executor, contract, nonce, amount, gasLimit, gasPrice, data)
+	if err != nil {
+		log.L().Fatal("Failed to inject execution", zap.Error(err))
+	}
+
+	log.L().Info("Created signed execution")
+
+	injectExecutionAPI(selp, execution, c, retryNum, retryInterval)
 	if wg != nil {
 		wg.Done()
 	}
@@ -604,4 +828,21 @@ func injectExecution(
 		log.L().Error("Failed to inject execution", zap.Error(err))
 	}
 	log.S().Infof("Sent out the signed execution: %+v", request)
+}
+func injectExecutionAPI(
+	selp action.SealedEnvelope,
+	execution *action.Execution,
+	c iotexapi.APIServiceClient,
+	retryNum int,
+	retryInterval int,
+) {
+
+	bo := backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Duration(retryInterval)*time.Second), uint64(retryNum))
+	if err := backoff.Retry(func() error {
+		_, err := c.SendAction(context.Background(), &iotexapi.SendActionRequest{Action: selp.Proto()})
+		return err
+	}, bo); err != nil {
+		log.L().Error("Failed to inject execution", zap.Error(err))
+	}
+
 }
