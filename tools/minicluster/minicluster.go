@@ -96,6 +96,11 @@ func main() {
 	for i := 0; i < numNodes; i++ {
 		go itx.StartServer(context.Background(), svrs[i], probe.New(7788), configs[i])
 	}
+	if err := testutil.WaitUntil(10*time.Millisecond, 2*time.Second, func() (bool, error) {
+		return svrs[0].ChainService(uint32(1)).Explorer().Port() == 14004, nil
+	}); err != nil {
+		log.L().Fatal("Failed to start explorer JSON-RPC server", zap.Error(err))
+	}
 
 	// target address for grpc connection. Default is "127.0.0.1:14014"
 	grpcAddr := "127.0.0.1:14014"
@@ -250,7 +255,8 @@ func newConfig(
 	cfg.ActPool.MaxNumActsToPick = 2000
 
 	cfg.System.HTTPMetricsPort = 0
-
+	cfg.Explorer.Enabled = true
+	cfg.Explorer.Port = apiPort - 10
 	cfg.API.Enabled = true
 	cfg.API.Port = apiPort
 	return cfg
